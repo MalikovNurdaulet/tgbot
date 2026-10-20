@@ -1,7 +1,7 @@
  
 # 🤖 tgbot — Project Telegram Bot
 
-![Python](https://img.shields.io/badge/Python-3.x-blue?logo=python)
+![Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
 ![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)
 ![License](https://img.shields.io/badge/License-Educational-green)
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange)
