@@ -38,6 +38,13 @@ tgbot/
 │
 ├── bot.py              # Main Telegram bot
 ├── config.py           # Bot configuration
+│
+├── oop/
+│   ├── __init__.py
+│   ├── user.py
+│   ├── course.py
+│   └── telegram_bot.py
+│
 ├── requirements.txt    # Project dependencies
 ├── .gitignore          # Ignored files
 └── README.md           # Documentation
