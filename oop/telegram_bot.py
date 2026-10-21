@@ -14,42 +14,54 @@ class TelegramBot:
         self.register_handlers()
 
     def register_handlers(self):
-        @self.bot.message_handler(commands=["start"],chat_types=["private"])
-        def start(message):
+        @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
+        def check_guest_password(message):
             user_id = message.from_user.id
-            self.waiting_password.discard(user_id)
-
-            if user_id in self.authorized_users:
+            if message.text == GUEST_PASSWORD:
+                self.guest_users.add(user_id)
+                self.waiting_password.discard(user_id)
                 self.bot.send_message(
                     message.chat.id,
-                    "Вы уже вошли как студент."
-                )
+                    "✅ Пароль верный!\n\n"
+                    "Добро пожаловать в гостевой режим.\n"
+                    "Ваша роль: Гость",
+                    reply_markup=types.ReplyKeyboardRemove())
+            else:
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Неверный пароль!\n"
+                    "Попробуйте ещё раз или нажмите /start.")
+
+        @self.bot.message_handler(content_types=["text"], chat_types=["private"])
+        def handle_text(message):
+            user_id = message.from_user.id
+            if user_id in self.authorized_users:
+                return
+            if user_id in self.guest_users:
+                return
+            if user_id in self.waiting_password:
                 return
             
-            if user_id in self.guest_users:
-                self.bot.send_message(
-                    message.chat.id,
-                    "Вы уже вошли как гость."
-                )
-                return
             keyboard = types.ReplyKeyboardMarkup(
                 resize_keyboard=True,
                 one_time_keyboard=True
             )
-
             keyboard.add(
                 types.KeyboardButton(
                     "📱 Поделиться номером",
                     request_contact=True
                 )
             )
-
             self.bot.send_message(
                 message.chat.id,
-                "Добро пожаловать!\n"
-                "Поделитесь своим номером телефона.",
+                "Для подтверждения номера необходимо "
+                "нажать кнопку «📱 Поделиться номером».\n\n"
+                "Номер, введённый вручную, не подтверждает, "
+                "что он принадлежит вам.",
                 reply_markup=keyboard
             )
+
+
 
         @self.bot.message_handler(content_types=["contact"],chat_types=["private"])
         def check_contact(message):
@@ -155,28 +167,7 @@ class TelegramBot:
                     "🔐 Введите гостевой пароль:"
                 )
 
-        @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
-        def check_guest_password(message):
-            user_id = message.from_user.id
-
-            if message.text == GUEST_PASSWORD:
-                self.guest_users.add(user_id)
-                self.waiting_password.discard(user_id)
-
-                self.bot.send_message(
-                    message.chat.id,
-                    "✅ Пароль верный!\n\n"
-                    "Добро пожаловать в гостевой режим.\n"
-                    "Ваша роль: Гость",
-                    reply_markup=types.ReplyKeyboardRemove()
-                )
-
-            else:
-                self.bot.send_message(
-                    message.chat.id,
-                    "❌ Неверный пароль!\n"
-                    "Попробуйте ещё раз или нажмите /start."
-                )
+        
 
     def run(self):
         print("Telegram bot started...")
