@@ -13,13 +13,40 @@ class TelegramBot:
         self.waiting_password = set()
         self.register_handlers()
 
+        self.bot.delete_my_commands()
+        self.bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
+
     def register_handlers(self):
+
+        #Logout для гостя
+        @self.bot.message_handler(commands=["logout"],chat_types=["private"])
+        def logout(message):
+            user_id = message.from_user.id
+            if user_id in self.guest_users:
+                self.guest_users.discard(user_id)
+                self.waiting_password.discard(user_id)
+                self.bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
+                
+                self.bot.send_message(
+                    message.chat.id,
+                    "✅ Вы вышли из гостевого режима.\n"
+                    "Для повторного входа нажмите /start."
+                )
+            else:
+                self.bot.send_message(
+                    message.chat.id,
+                    "Вы не авторизованы как гость."
+                )
+
+        #Проверка пароля для guest
         @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
         def check_guest_password(message):
             user_id = message.from_user.id
             if message.text == GUEST_PASSWORD:
                 self.guest_users.add(user_id)
                 self.waiting_password.discard(user_id)
+                self.bot.set_my_commands([types.BotCommand("logout","Выйти из гостевого режима")],scope=types.BotCommandScopeChat(chat_id=message.chat.id)
+)
                 self.bot.send_message(
                     message.chat.id,
                     "✅ Пароль верный!\n\n"
@@ -32,6 +59,7 @@ class TelegramBot:
                     "❌ Неверный пароль!\n"
                     "Попробуйте ещё раз или нажмите /start.")
 
+        #Авторизация
         @self.bot.message_handler(content_types=["text"], chat_types=["private"])
         def handle_text(message):
             user_id = message.from_user.id
@@ -41,7 +69,9 @@ class TelegramBot:
                 return
             if user_id in self.waiting_password:
                 return
-            
+
+            self.bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
+
             keyboard = types.ReplyKeyboardMarkup(
                 resize_keyboard=True,
                 one_time_keyboard=True
@@ -62,7 +92,7 @@ class TelegramBot:
             )
 
 
-
+        #Валидация
         @self.bot.message_handler(content_types=["contact"],chat_types=["private"])
         def check_contact(message):
             contact = message.contact
@@ -91,6 +121,8 @@ class TelegramBot:
                 self.authorized_users[user_id] = student
                 self.guest_users.discard(user_id)
                 self.waiting_password.discard(user_id)
+
+                self.bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
 
                 self.bot.send_message(
                     message.chat.id,
@@ -132,6 +164,7 @@ class TelegramBot:
                     reply_markup=types.ReplyKeyboardRemove()
                 )
 
+        #Проверка входа
         @self.bot.callback_query_handler(func=lambda call: call.data in ("register", "guest"))
         def handle_choice(call):
             self.bot.answer_callback_query(call.id)
@@ -152,7 +185,8 @@ class TelegramBot:
                     "Вы уже вошли как гость."
                 )
                 return
-
+            
+            
             if call.data == "register":
                 self.bot.send_message(
                     chat_id,
