@@ -45,6 +45,7 @@ tgbot/
 │   ├── course.py
 │   └── telegram_bot.py
 │
+├── contacts.txt    # List of varified students
 ├── requirements.txt    # Project dependencies
 ├── .gitignore          # Ignored files
 └── README.md           # Documentation
