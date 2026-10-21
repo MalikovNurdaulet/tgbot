@@ -1,76 +1,183 @@
 import telebot
 from telebot import types
+from config import GUEST_PASSWORD
 from oop.user import User
+
 
 class TelegramBot:
     def __init__(self, token):
         self.bot = telebot.TeleBot(token)
         self.contacts_path = "contacts.txt"
         self.authorized_users = {}
+        self.guest_users = set()
+        self.waiting_password = set()
         self.register_handlers()
 
     def register_handlers(self):
         @self.bot.message_handler(commands=["start"],chat_types=["private"])
         def start(message):
+            user_id = message.from_user.id
+            self.waiting_password.discard(user_id)
+
+            if user_id in self.authorized_users:
+                self.bot.send_message(
+                    message.chat.id,
+                    "Вы уже вошли как студент."
+                )
+                return
+            
+            if user_id in self.guest_users:
+                self.bot.send_message(
+                    message.chat.id,
+                    "Вы уже вошли как гость."
+                )
+                return
             keyboard = types.ReplyKeyboardMarkup(
                 resize_keyboard=True,
                 one_time_keyboard=True
             )
-            button = types.KeyboardButton(
-                text="📱 Поделиться номером",
-                request_contact=True
+
+            keyboard.add(
+                types.KeyboardButton(
+                    "📱 Поделиться номером",
+                    request_contact=True
+                )
             )
-            keyboard.add(button)
+
             self.bot.send_message(
                 message.chat.id,
-                "Добро пожаловать!\n\n"
-                "Для входа в образовательный бот "
-                "поделитесь своим номером телефона.",
+                "Добро пожаловать!\n"
+                "Поделитесь своим номером телефона.",
                 reply_markup=keyboard
             )
 
-        @self.bot.message_handler(
-            content_types=["contact"],
-            chat_types=["private"]
-        )
+        @self.bot.message_handler(content_types=["contact"],chat_types=["private"])
         def check_contact(message):
+            contact = message.contact
+            user_id = message.from_user.id
 
-            if message.contact.user_id != message.from_user.id:
+            if contact.user_id != user_id:
                 self.bot.send_message(
                     message.chat.id,
-                    "Пожалуйста, отправьте свой контакт "
+                    "Пожалуйста, отправьте свой номер "
                     "через кнопку Telegram."
                 )
                 return
+
             user = User(
-                message.from_user.id,
+                user_id,
                 message.from_user.username,
                 message.from_user.first_name
             )
+
             student = user.find_by_phone(
-                message.contact.phone_number,
+                contact.phone_number,
                 self.contacts_path
             )
+
             if student:
-                self.authorized_users[user.user_id] = student
+                self.authorized_users[user_id] = student
+                self.guest_users.discard(user_id)
+                self.waiting_password.discard(user_id)
+
                 self.bot.send_message(
                     message.chat.id,
-                    f"✅ Верификация пройдена!\n\n"
+                    "✅ Проверка пройдена!\n\n"
                     f"Имя: {student['first_name']}\n"
                     f"Фамилия: {student['last_name']}\n"
-                    f"Факультет: {student['faculty']}",
+                    f"Факультет: {student['faculty']}\n"
+                    "Роль: Студент",
                     reply_markup=types.ReplyKeyboardRemove()
                 )
+
             else:
-                self.authorized_users.pop(user.user_id, None)
+                keyboard = types.InlineKeyboardMarkup()
+
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "📝 Зарегистрироваться",
+                        callback_data="register"
+                    )
+                )
+
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "🔑 Войти как гость",
+                        callback_data="guest"
+                    )
+                )
+
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Вы не найдены в списке студентов.\n\n"
-                    "Выберите один из вариантов:\n"
-                    "1. Зарегистрироваться\n"
-                    "2. Войти как гость",
+                    "❌ Ваш номер не найден в списке студентов.\n"
+                    "Выберите способ входа:",
+                    reply_markup=keyboard
+                )
+
+                self.bot.send_message(
+                    message.chat.id,
+                    "Выберите вариант выше.",
                     reply_markup=types.ReplyKeyboardRemove()
                 )
+
+        @self.bot.callback_query_handler(func=lambda call: call.data in ("register", "guest"))
+        def handle_choice(call):
+            self.bot.answer_callback_query(call.id)
+
+            user_id = call.from_user.id
+            chat_id = call.message.chat.id
+
+            if user_id in self.authorized_users:
+                self.bot.send_message(
+                    chat_id,
+                    "Вы уже вошли как студент."
+                )
+                return
+
+            if user_id in self.guest_users:
+                self.bot.send_message(
+                    chat_id,
+                    "Вы уже вошли как гость."
+                )
+                return
+
+            if call.data == "register":
+                self.bot.send_message(
+                    chat_id,
+                    "📝 Регистрация студентов пока не реализована."
+                )
+
+            elif call.data == "guest":
+                self.waiting_password.add(user_id)
+
+                self.bot.send_message(
+                    chat_id,
+                    "🔐 Введите гостевой пароль:"
+                )
+
+        @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
+        def check_guest_password(message):
+            user_id = message.from_user.id
+
+            if message.text == GUEST_PASSWORD:
+                self.guest_users.add(user_id)
+                self.waiting_password.discard(user_id)
+
+                self.bot.send_message(
+                    message.chat.id,
+                    "✅ Пароль верный!\n\n"
+                    "Добро пожаловать в гостевой режим.\n"
+                    "Ваша роль: Гость",
+                    reply_markup=types.ReplyKeyboardRemove()
+                )
+
+            else:
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Неверный пароль!\n"
+                    "Попробуйте ещё раз или нажмите /start."
+                )
+
     def run(self):
         print("Telegram bot started...")
         self.bot.infinity_polling()
