@@ -1,0 +1,18 @@
+
+services:
+  tgbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: tgbot
+
+    restart: unless-stopped
+
+    environment:
+      TZ: Asia/Almaty
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      - ./config.py:/app/config.py:ro
+      - ./contacts.txt:/app/contacts.txt:ro

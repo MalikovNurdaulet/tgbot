@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+.git/
+.vscode/
+
+config.py
+contacts.txt
+
+.env
+.env.*
