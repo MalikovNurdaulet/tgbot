@@ -29,7 +29,7 @@ def today():
         "📚 Учебный календарь\n\n"
         f"🎓 Учебная неделя: {week_number} из {TOTAL_WEEKS}\n\n"
         f"📅 Дата: {current_date:%d.%m.%Y}\n\n"
-        f"🗓 День недели: "
+        f"📅 День недели: "
         f"{weekday_names[current_date.weekday()]}\n\n"
         f"📆 Период: {monday:%d.%m}–{sunday:%d.%m} "
     )

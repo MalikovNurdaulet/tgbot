@@ -3,6 +3,7 @@ from telebot import types
 from config import GUEST_PASSWORD
 from oop.user import User
 from functions import today
+from oop.course import Course
 
 class TelegramBot:
     def __init__(self, token):
@@ -19,6 +20,7 @@ class TelegramBot:
         self.bot.delete_my_commands()
         self.bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
 
+        self.course = Course()
     def register_handlers(self):
 
         @self.bot.message_handler(commands=["start"],chat_types=["private"])
@@ -109,15 +111,15 @@ class TelegramBot:
                 self.waiting_password.discard(user_id)
                 self.bot.set_my_commands(
                     [
-                        types.BotCommand(
-                            "today",
-                            "Учебная неделя и дата"
-                        )
+                        types.BotCommand("today", "Учебная неделя и дата"),
+                        types.BotCommand("courses", "Список предметов"),
+                        types.BotCommand("info", "Информация о предметах")
                     ],
                     scope=types.BotCommandScopeChat(
                         chat_id=message.chat.id
                     )
                 )
+                
 
                 self.bot.send_message(
                     message.chat.id,
@@ -131,7 +133,9 @@ class TelegramBot:
                 self.bot.send_message(
                     message.chat.id,
                     "📋 Доступные команды:\n\n"
-                    "/today — Учебная неделя и дата"
+                    "/today — Учебная неделя и дата\n"
+                    "/courses — Список доступных предметов\n"
+                    "/info — Информация о предметах"
                 )
 
             else:
@@ -191,6 +195,29 @@ class TelegramBot:
                     chat_id,
                     "🔐 Введите гостевой пароль:"
                 )
+
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith("course_"))
+        def course_info_handler(call):
+            self.bot.answer_callback_query(call.id)
+
+            user_id = call.from_user.id
+            chat_id = call.message.chat.id
+
+            if call.message.chat.type != "private":
+                return
+            if (user_id not in self.authorized_users
+                    and user_id not in self.guest_users):
+                self.bot.send_message(
+                    chat_id,
+                    "❌ Сначала пройдите авторизацию через /start."
+                )
+                return
+            course_id = call.data.replace("course_", "", 1)
+            self.bot.send_message(
+                chat_id,
+                self.course.get_course_info(course_id)
+            )
+
         @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
         def check_guest_password(message):
             user_id = message.from_user.id
@@ -199,10 +226,10 @@ class TelegramBot:
                 self.waiting_password.discard(user_id)
                 self.bot.set_my_commands(
                     [
-                        types.BotCommand(
-                            "logout",
-                            "Выйти из гостевого режима"
-                        )
+                        types.BotCommand("today", "Учебная неделя и дата"),
+                        types.BotCommand("courses", "Список предметов"),
+                        types.BotCommand("info", "Информация о предметах"),
+                        types.BotCommand("logout", "Выйти из гостевого режима")
                     ],
                     scope=types.BotCommandScopeChat(
                         chat_id=message.chat.id
@@ -219,6 +246,8 @@ class TelegramBot:
                     message.chat.id,
                     "📋 Доступные команды:\n\n"
                     "/today — Учебная неделя и дата\n"
+                    "/courses — Список доступных предметов\n"
+                    "/info — Информация о предметах\n"
                     "/logout — Выйти из гостевого режима"
                 )
             else:
@@ -227,6 +256,44 @@ class TelegramBot:
                     "❌ Неверный пароль!\n"
                     "Попробуйте ещё раз или нажмите /start."
                 )
+
+        @self.bot.message_handler(commands=["courses"],chat_types=["private"])
+        def courses_handler(message):
+            user_id = message.from_user.id
+            if (user_id not in self.authorized_users
+                    and user_id not in self.guest_users):
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Сначала пройдите авторизацию через /start."
+                )
+                return
+            self.bot.send_message(
+                message.chat.id,
+                self.course.get_courses()
+            )
+        @self.bot.message_handler(commands=["info"],chat_types=["private"])
+        def info_handler(message):
+            user_id = message.from_user.id
+            if (user_id not in self.authorized_users
+                    and user_id not in self.guest_users):
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Сначала пройдите авторизацию через /start."
+                )
+                return
+            keyboard = types.InlineKeyboardMarkup()
+            for course_id, course in self.course.courses.items():
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        course["name"],
+                        callback_data=f"course_{course_id}"
+                    )
+                )
+            self.bot.send_message(
+                message.chat.id,
+                "📚 Выберите предмет:",
+                reply_markup=keyboard
+            )
 
         @self.bot.message_handler(content_types=["text"],chat_types=["private"])
         def handle_text(message):
