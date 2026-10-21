@@ -128,6 +128,11 @@ class TelegramBot:
                     "Роль: Студент",
                     reply_markup=types.ReplyKeyboardRemove()
                 )
+                self.bot.send_message(
+                    message.chat.id,
+                    "📋 Доступные команды:\n\n"
+                    "/today — Учебная неделя и дата"
+                )
 
             else:
                 self.waiting_password.discard(user_id)
@@ -209,6 +214,12 @@ class TelegramBot:
                     "Добро пожаловать в гостевой режим.\n"
                     "Ваша роль: Гость",
                     reply_markup=types.ReplyKeyboardRemove()
+                )
+                self.bot.send_message(
+                    message.chat.id,
+                    "📋 Доступные команды:\n\n"
+                    "/today — Учебная неделя и дата\n"
+                    "/logout — Выйти из гостевого режима"
                 )
             else:
                 self.bot.send_message(
