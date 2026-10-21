@@ -4,6 +4,7 @@ from config import GUEST_PASSWORD
 from oop.user import User
 from functions import today
 from oop.course import Course
+from oop.syllabus import Syllabus
 
 class TelegramBot:
     def __init__(self, token):
@@ -21,6 +22,8 @@ class TelegramBot:
         self.bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
 
         self.course = Course()
+        self.syllabus = Syllabus()
+
     def register_handlers(self):
 
         @self.bot.message_handler(commands=["start"],chat_types=["private"])
@@ -196,27 +199,79 @@ class TelegramBot:
                     "🔐 Введите гостевой пароль:"
                 )
 
+        
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith("course_"))
         def course_info_handler(call):
             self.bot.answer_callback_query(call.id)
-
             user_id = call.from_user.id
             chat_id = call.message.chat.id
+            if call.message.chat.type != "private":
+                return
 
+            if (user_id not in self.authorized_users
+                    and user_id not in self.guest_users):
+                self.bot.send_message(
+                    chat_id,
+                    "❌ Сначала авторизуйтесь через /start."
+                )
+                return
+            course_id = call.data.replace("course_", "", 1)
+            if course_id not in self.course.courses:
+                self.bot.send_message(
+                    chat_id,
+                    "❌ Предмет не найден."
+                )
+                return
+
+            course_info = self.course.get_course_info(course_id)
+            keyboard = types.InlineKeyboardMarkup(row_width=5)
+            buttons = []
+            for week in range(1, 16):
+                button = types.InlineKeyboardButton(
+                    text=str(week),
+                    callback_data=f"week_{course_id}_{week}"
+                )
+                buttons.append(button)
+            for i in range(0, 15, 5):
+                keyboard.row(*buttons[i:i + 5])
+            self.bot.send_message(
+                chat_id,
+                f"{course_info}\n\n"
+                "📅 Выберите учебную неделю:",
+                reply_markup=keyboard
+            )
+
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith("week_"))
+        def week_info_handler(call):
+            self.bot.answer_callback_query(call.id)
+            user_id = call.from_user.id
+            chat_id = call.message.chat.id
             if call.message.chat.type != "private":
                 return
             if (user_id not in self.authorized_users
                     and user_id not in self.guest_users):
                 self.bot.send_message(
                     chat_id,
-                    "❌ Сначала пройдите авторизацию через /start."
+                    "❌ Сначала авторизуйтесь через /start."
                 )
                 return
-            course_id = call.data.replace("course_", "", 1)
+            parts = call.data.split("_")
+            if len(parts) != 3:
+                return
+            course_id = parts[1]
+            try:
+                week = int(parts[2])
+            except ValueError:
+                return
+            answer = self.syllabus.get_week_info(
+                course_id,
+                week
+            )
             self.bot.send_message(
                 chat_id,
-                self.course.get_course_info(course_id)
+                answer
             )
+
 
         @self.bot.message_handler(func=lambda message: (message.from_user.id in self.waiting_password),content_types=["text"],chat_types=["private"])
         def check_guest_password(message):

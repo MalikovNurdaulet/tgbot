@@ -48,7 +48,6 @@ class Course:
 
     def get_course_info(self, course_id):
         course = self.courses.get(course_id)
-
         if course is None:
             return "❌ Предмет не найден."
 
